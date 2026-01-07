@@ -1,7 +1,9 @@
 # 1. 必要なライブラリを再インポート（このセルだけで完結させます）
 import numpy as np
 import matplotlib.pyplot as plt
-import japanize_matplotlib
+import matplotlib.font_manager as fm
+# サーバー上の日本語フォントを自動で読み込む設定（後述のrequirementsと連動）
+plt.rcParams['font.family'] = 'sans-serif'
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 
