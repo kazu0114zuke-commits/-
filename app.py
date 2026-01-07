@@ -1,13 +1,24 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import os
 
-# --- グラフの日本語文字化け対策（確実な方法） ---
-plt.rcParams['font.family'] = 'sans-serif' # 基本はサンセリフ
-plt.rcParams['font.sans-serif'] = [
-    'Hiragino Maru Gothic Pro', 'Yu Gothic', 'Meiryo', 
-    'TakaoExGothic', 'IPAexGothic', 'IPAPGothic', 'VL PGothic', 'Noto Sans CJK JP'
-]
+# --- 徹底的な日本語フォント対策 ---
+def set_japanese_font():
+    # packages.txtでインストールされるIPAフォントのパスを直接指定
+    font_path = '/usr/share/fonts/opentype/ipafont-gothic/ipagp.ttf'
+    if os.path.exists(font_path):
+        fm.fontManager.addfont(font_path)
+        prop = fm.FontProperties(fname=font_path)
+        plt.rcParams['font.family'] = prop.get_name()
+    else:
+        # 代替案: システムの標準フォントから日本語を探す
+        plt.rcParams['font.family'] = 'sans-serif'
+        plt.rcParams['font.sans-serif'] = ['Noto Sans CJK JP', 'IPAexGothic', 'DejaVu Sans']
+
+set_japanese_font()
+
 
 # --- 計算ロジック ---
 def simulate_advanced_model(savings, car_val, base_premium, deductible, prob, y_rate, inf_rate, trials=1000, years=10):
