@@ -104,15 +104,21 @@ if st.sidebar.button("シミュレーションを実行"):
     with col1:
         st.subheader("📈 長期推移レポート（決定論）")
         fig1, ax1 = plt.subplots(figsize=(8, 5))
+        
+        # 各線のプロット
         ax1.plot(time, cost_ins, label="累積保険料 (赤)", color="red", linestyle="--")
-        ax1.plot(time, exp_loss, label="累積期待損失 (青)", color="blue", linestyle=":")
+        ax1.plot(time, exp_loss, label="累積期待損失 (青)", color="blue", linestyle=":", alpha=0.7)
         ax1.plot(time, sav_real, label="貯蓄＋運用資産 (緑)", color="green", linewidth=2)
+        
+        # --- ここが追加ポイント: 累積期待損失を斜線の面積で表現 ---
+        ax1.fill_between(time, 0, exp_loss, color="blue", alpha=0.1, hatch="//", label="期待損失の総量")
+        
         ax1.set_xlabel("年数")
         ax1.set_ylabel("金額 (円)")
         ax1.legend()
         ax1.grid(alpha=0.3)
         st.pyplot(fig1)
-        st.caption("赤(払う額)と青(事故る額)の差が保険会社の手数料。緑が自前で運用した場合の資産。")
+        st.caption("斜線エリア（期待損失）が赤線（保険料）より小さい場合、差額は保険会社の手数料となります。")
 
     with col2:
         st.subheader("📊 資産差額の分布（確率論）")
