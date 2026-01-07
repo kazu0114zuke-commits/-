@@ -45,7 +45,7 @@ def simulate_advanced_model(savings, car_val, base_premium, deductible, prob, y_
 # --- UI部分 ---
 st.set_page_config(page_title="車両保険・定量判断エンジン", layout="wide")
 st.title("🛡️ 車両保険・多角的意思決定エンジン")
-st.caption("大学院レベルの確率論的動的リスク分析モデル")
+st.caption("確率論的動的リスク分析モデル")
 
 # サイドバーにスライダーを配置
 st.sidebar.header("📋 シミュレーション設定")
