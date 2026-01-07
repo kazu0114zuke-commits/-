@@ -2,8 +2,12 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 
-# --- フォント設定（Streamlit Cloud環境用） ---
-plt.rcParams['font.family'] = 'sans-serif' 
+# --- グラフの日本語文字化け対策（確実な方法） ---
+plt.rcParams['font.family'] = 'sans-serif' # 基本はサンセリフ
+plt.rcParams['font.sans-serif'] = [
+    'Hiragino Maru Gothic Pro', 'Yu Gothic', 'Meiryo', 
+    'TakaoExGothic', 'IPAexGothic', 'IPAPGothic', 'VL PGothic', 'Noto Sans CJK JP'
+]
 
 # --- 計算ロジック ---
 def simulate_advanced_model(savings, car_val, base_premium, deductible, prob, y_rate, inf_rate, trials=1000, years=10):
