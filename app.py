@@ -1,117 +1,95 @@
-# 1. 必要なライブラリを再インポート（このセルだけで完結させます）
+import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
-# サーバー上の日本語フォントを自動で読み込む設定（後述のrequirementsと連動）
-plt.rcParams['font.family'] = 'sans-serif'
-import ipywidgets as widgets
-from IPython.display import display, clear_output
 
-# 等級遷移用
-NCD_RATES = {i: 0.5 for i in range(1, 21)} # 簡易版
+# --- フォント設定（Streamlit Cloud環境用） ---
+plt.rcParams['font.family'] = 'sans-serif' 
 
-def run_integrated_analysis(savings, car_val, premium, deductible, prob, y_rate, inf_rate):
-    years = 10
-    time = np.arange(0, years + 1)
+# --- 計算ロジック ---
+def simulate_advanced_model(savings, car_val, base_premium, deductible, prob, y_rate, inf_rate, trials=1000, years=10):
+    diff_results = []
+    # 等級割増引率（簡易版）
+    ncd_rates = {1:1.64, 2:1.28, 3:1.15, 4:1.08, 5:0.87, 6:0.81, 7:0.7, 8:0.63, 9:0.6, 10:0.58, 
+                 11:0.56, 12:0.54, 13:0.52, 14:0.5, 15:0.49, 16:0.48, 17:0.44, 18:0.4, 19:0.39, 20:0.37}
     
-    # --- 解析1: 決定論的レポート (曲線モデル) ---
-    cost_ins = premium * time
-    savings_real = []
-    curr_sav = 0
-    for t in range(years + 1):
-        # 購買力 = 名目資産 / (1 + インフレ率)^t
-        real_p = curr_sav / ((1 + inf_rate)**t)
-        savings_real.append(real_p)
-        curr_sav = (curr_sav + premium) * (1 + y_rate)
-    
-    # --- 解析2: 確率論的分析 (モンテカルロ法) ---
-    trials = 1000
-    m_results = []
     for _ in range(trials):
         c_sav_ins = savings
         c_sav_no = savings
+        c_ncd = 15
         c_val = car_val
         for t in range(1, years + 1):
-            c_val *= 0.95 # 減価償却
+            c_val *= 0.95
             n_acc = np.random.poisson(prob)
             dmg = 0
             if n_acc > 0:
                 for _ in range(n_acc):
                     dmg += c_val * np.random.beta(2, 5)
             
-            # 保険あり：保険料（等級考慮せず一旦0.5倍固定）を払い、免責超えを補填
-            c_sav_ins -= (premium * 0.5)
-            if dmg > deductible: c_sav_ins += (dmg - deductible)
+            # 保険あり
+            curr_prem = base_premium * ncd_rates.get(c_ncd, 1.0)
+            c_sav_ins -= curr_prem
+            if dmg > deductible:
+                c_sav_ins += (dmg - deductible)
+                c_ncd = max(1, c_ncd - (3 * n_acc))
+            else:
+                c_sav_ins -= dmg
+                c_ncd = min(20, c_ncd + 1)
             c_sav_ins *= (1 + y_rate)
             
-            # 保険なし：修理費すべて自腹
+            # 保険なし
             c_sav_no -= dmg
             c_sav_no *= (1 + y_rate)
-        m_results.append(c_sav_no - c_sav_ins)
-    
-    return time, cost_ins, np.array(savings_real), np.array(m_results)
+        diff_results.append(c_sav_no - c_sav_ins)
+    return np.array(diff_results)
 
-# --- UI構築 ---
-def update_app(savings, car_val, premium, deductible, prob, y_rate, inf_rate):
-    time, cost_ins, sav_real, m_results = run_integrated_analysis(
-        savings, car_val, premium, deductible, prob/100, y_rate/100, inf_rate/100
-    )
-    
-    clear_output(wait=True)
-    
-    # 描画エリア
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-    
-    # 左：決定論レポート
-    ax1.plot(time, cost_ins, label="累積保険料支出", color="red", linestyle="--")
-    ax1.plot(time, sav_real, label="未加入時の実質資産価値", color="green", linewidth=2)
-    ax1.set_title("10年間の実質収支推移", fontsize=14)
-    ax1.set_xlabel("年数")
-    ax1.set_ylabel("金額 (円)")
-    ax1.legend()
-    ax1.grid(True)
-    
-    # 右：確率分布
-    n, bins, patches = ax2.hist(m_results, bins=50, edgecolor='black', alpha=0.7)
-    for i in range(len(patches)):
-        if bins[i] > 0: patches[i].set_facecolor('green')
-        else: patches[i].set_facecolor('red')
-    ax2.axvline(0, color='black', linewidth=2)
-    ax2.set_title("1,000回の試行による『最終資産差』の分布", fontsize=14)
-    ax2.set_xlabel("保険なしが有利な金額（プラスなら貯蓄の勝ち）")
-    ax2.grid(axis='y', alpha=0.3)
-    
-    plt.tight_layout()
-    plt.show()
-    
-    # 意思決定指示書
-    win_rate = np.sum(m_results > 0) / 10
-    print("\n" + "█"*30 + " 最終意思決定指示書 " + "█"*30)
-    print(f"【統計データ】 保険未加入（貯蓄）が有利になる確率: {win_rate}%")
-    if win_rate > 70:
-        print("🟢 判定：貯蓄シフト推奨。統計的に7割以上の確率で自腹の方が得をします。")
-    else:
-        print("🔴 判定：保険維持推奨。大損するリスクが無視できないレベルです。")
-    print("█"*78)
+# --- UI部分 ---
+st.set_page_config(page_title="車両保険・定量判断エンジン", layout="wide")
+st.title("🛡️ 車両保険・多角的意思決定エンジン")
+st.caption("大学院レベルの確率論的動的リスク分析モデル")
 
-# スライダー設定
-s_sav = widgets.IntSlider(value=1500000, min=0, max=5000000, step=100000, description='貯蓄:')
-s_c_val = widgets.IntSlider(value=3000000, min=500000, max=10000000, step=100000, description='車両価格:')
-s_prem = widgets.IntSlider(value=100000, min=0, max=300000, step=5000, description='保険料:')
-s_ded = widgets.IntSlider(value=50000, min=0, max=200000, step=10000, description='免責額:')
-s_prob = widgets.FloatSlider(value=5.0, min=0, max=20.0, step=0.5, description='事故率(%):')
-s_yr = widgets.FloatSlider(value=3.0, min=0, max=10.0, step=0.5, description='利回り(%):')
-s_inf = widgets.FloatSlider(value=2.0, min=0, max=10.0, step=0.5, description='インフレ(%):')
+# サイドバーにスライダーを配置
+st.sidebar.header("📋 シミュレーション設定")
+s_sav = st.sidebar.number_input("現在の貯蓄 (円)", value=1500000, step=100000)
+s_c_val = st.sidebar.slider("車両価格 (円)", 500000, 10000000, 3000000, 100000)
+s_prem = st.sidebar.slider("年間基準保険料 (円)", 10000, 300000, 100000, 5000)
+s_ded = st.sidebar.slider("免責金額 (円)", 0, 200000, 50000, 10000)
+s_prob = st.sidebar.slider("年間事故率 (%)", 0.0, 20.0, 5.0, 0.5) / 100
+s_yr = st.sidebar.slider("資産運用利回り (%)", 0.0, 10.0, 3.0, 0.5) / 100
+s_inf = st.sidebar.slider("想定インフレ率 (%)", 0.0, 10.0, 2.0, 0.5) / 100
 
-ui = widgets.VBox([
-    widgets.HBox([s_sav, s_c_val]),
-    widgets.HBox([s_prem, s_ded]),
-    widgets.HBox([s_prob, s_yr, s_inf])
-])
+# メイン画面
+if st.sidebar.button("解析を実行"):
+    with st.spinner('1,000回の人生をシミュレーション中...'):
+        results = simulate_advanced_model(s_sav, s_c_val, s_prem, s_ded, s_prob, s_yr, s_inf)
+        
+        # 指標計算
+        win_rate = np.sum(results > 0) / len(results) * 100
+        expected_gain = np.mean(results)
+        var_95 = np.percentile(results, 5)
 
-out = widgets.interactive_output(update_app, {
-    'savings': s_sav, 'car_val': s_c_val, 'premium': s_prem, 
-    'deductible': s_ded, 'prob': s_prob, 'y_rate': s_yr, 'inf_rate': s_inf
-})
+        # 指示書表示
+        st.subheader("█ 最終意思決定指示書")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("貯蓄シフトの勝率", f"{win_rate:.1f}%")
+        c2.metric("期待収支改善額", f"{int(expected_gain):+,}円")
+        c3.metric("最大損失リスク(5%)", f"{int(abs(var_95)):,}円")
 
-display(ui, out)
+        if win_rate > 70:
+            st.success("【判定】貯蓄シフト推奨。統計的に高い確率で自腹の方が得をします。")
+        else:
+            st.warning("【判定】保険維持推奨。万が一の損失が大きく、保険によるリスク移転に価値があります。")
+
+        # グラフ
+        st.divider()
+        st.subheader("📊 資産差額の確率分布（保険なし vs 加入）")
+        fig, ax = plt.subplots(figsize=(10, 4))
+        n, bins, patches = ax.hist(results, bins=50, edgecolor='black', alpha=0.7)
+        for i in range(len(patches)):
+            if bins[i] > 0: patches[i].set_facecolor('green')
+            else: patches[i].set_facecolor('red')
+        ax.axvline(0, color='black', linewidth=2)
+        ax.set_xlabel("「保険なし」が有利な金額（プラスなら貯蓄の勝ち）")
+        ax.set_ylabel("頻度")
+        st.pyplot(fig)
+else:
+    st.info("サイドバーの「解析を実行」ボタンを押すと、1,000回のモンテカルロ・シミュレーションが始まります。")
