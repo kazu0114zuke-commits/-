@@ -18,14 +18,28 @@ def set_japanese_font():
 
 set_japanese_font()
 
-# --- 2. 解析ロジック ---
+# --- 解析ロジック (累積期待損失の計算を追加) ---
 def run_full_analysis(savings, car_val, premium, deductible, prob, y_rate, inf_rate):
     years = 10
     time = np.arange(0, years + 1)
     
-    # 【解析A】決定論的推移 (期待値ベース)
-    # 保険料を運用に回した場合の実質資産価値（インフレ調整）
+    # 【解析A】決定論的推移
     cost_ins_nominal = premium * time
+    
+    # 累積期待損失の計算 (期待値 = 車両価値 * 事故率 * 平均損害率)
+    # 損害率は Beta(2,5) の平均 = 2/(2+5) ≒ 28.5% を使用
+    avg_damage_rate = 2 / 7 
+    expected_loss_series = [0]
+    current_val = car_val
+    cumulative_loss = 0
+    for t in range(1, years + 1):
+        current_val *= 0.95 # 減価償却
+        # その年の期待損失 = 時価 * 事故率 * 平均損害率
+        yearly_expected_loss = current_val * prob * avg_damage_rate
+        cumulative_loss += yearly_expected_loss
+        expected_loss_series.append(cumulative_loss)
+    
+    # 運用資産（保険料を運用した場合の実質価値）
     savings_real = []
     curr_nominal_sav = 0
     for t in range(years + 1):
@@ -84,7 +98,7 @@ s_yr = st.sidebar.slider("運用利回り (%)", 0.0, 10.0, 3.0, 0.5) / 100
 s_inf = st.sidebar.slider("インフレ率 (%)", 0.0, 10.0, 2.0, 0.5) / 100
 
 if st.sidebar.button("シミュレーションを実行"):
-    time, cost_ins, sav_real, m_results = run_full_analysis(s_sav, s_c_val, s_prem, s_ded, s_prob, s_yr, s_inf)
+    time, cost_ins, exp_loss, sav_real, m_results = run_full_analysis(s_sav, s_c_val, s_prem, s_ded, s_prob, s_yr, s_inf)
     
     # 指標表示
     win_rate = np.sum(m_results > 0) / len(m_results) * 100
@@ -103,15 +117,15 @@ if st.sidebar.button("シミュレーションを実行"):
     with col1:
         st.subheader("📈 長期推移レポート（決定論）")
         fig1, ax1 = plt.subplots(figsize=(8, 5))
-        ax1.plot(time, cost_ins, label="保険料の累計支払額", color="red", linestyle="--")
-        ax1.plot(time, sav_real, label="保険料を運用した実質価値", color="green", linewidth=2)
+        ax1.plot(time, cost_ins, label="累積保険料支出 (確定コスト)", color="red", linestyle="--")
+        ax1.plot(time, exp_loss, label="累積期待損失 (事故コスト期待値)", color="blue", linestyle=":")
+        ax1.plot(time, sav_real, label="貯蓄＋運用資産 (実質価値)", color="green", linewidth=2)
         ax1.set_xlabel("年数")
         ax1.set_ylabel("金額 (円)")
-        ax1.set_title("累積コスト vs 運用機会利益")
         ax1.legend()
         ax1.grid(alpha=0.3)
         st.pyplot(fig1)
-        st.caption("保険料を支払わずに運用した場合の『実質的な購買力』との比較です。")
+        st.caption("赤線(保険料)が青線(期待損失)を上回っている期間は、統計的に『払いすぎ』の状態です。")
 
     with col2:
         st.subheader("📊 資産差額の分布（確率論）")
