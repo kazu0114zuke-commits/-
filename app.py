@@ -80,7 +80,7 @@ def run_full_analysis(savings, car_val, premium, deductible, prob, y_rate, inf_r
             c_sav_no *= (1 + y_rate)
         m_results.append(c_sav_no - c_sav_ins)
         
-    return time, cost_ins_nominal, np.array(savings_real), np.array(m_results)
+    return time, cost_ins_nominal, np.array(savings_real), np.array(m_results),np.array(m_results)
 
 # --- 3. UI構築 ---
 st.set_page_config(page_title="車両保険・精密分析アプリ", layout="wide")
